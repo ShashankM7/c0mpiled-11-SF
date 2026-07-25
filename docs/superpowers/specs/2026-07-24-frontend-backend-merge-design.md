@@ -145,7 +145,12 @@ steps and accumulates a data snapshot in the shared shapes.
 | 7 | `approval.required`; `approval.recorded` for ap_clerk (`BLOCKED_BY_POLICY`) |
 | 8 | `approval.recorded` — manager, chain `PARTIAL` |
 | 9 | `approval.recorded` — controller, chain `APPROVED` |
-| 10 | `call.completed`, `run.completed` (`APPROVED_READY_TO_PLACE`) |
+| 10 | `call.completed` |
+
+`run.completed` does **not** advance a step. The backend emits it the moment the
+chain fully approves — before the outbound call is placed — so it arrives at
+step 9's boundary. It sets the request's final state
+(`APPROVED_READY_TO_PLACE`) on the snapshot and nothing more.
 
 A step advances when the **last** event listed for it has arrived. Event types
 not listed in the table (`run.started`, `sourcing.started`, `call.started`, and
@@ -182,9 +187,25 @@ live. Unreachable → scripted replay. `?mode=fixture` and `?mode=live` force
 either. The existing `?autoplay=1` continues to work in both.
 
 If a live run fails, stalls, or emits `run.blocked` / `run.failed`, a banner
-appears and the scripted replay resumes **from the current step**. This is
-coherent rather than a jump cut: the backend's canonical fixture-mode run
-produces exactly the data the scripted fixtures contain, by construction.
+appears and the scripted replay resumes **from the current step**.
+
+For that resume to be coherent rather than a jump cut, the two data sets must
+agree. **Today they do not.** The frontend's fixtures use anonymized placeholder
+vendors (`Bayline Contract · Demo`, `Westbridge Seating · Demo`,
+`demo.invalid`, `#fixture` buy links) while the backend's fixtures use the
+canonical run (`BulkChairs Depot`, `SeatCraft Commercial`,
+`Rapid Restaurant Supply`, 1234 Broadway). Several numbers differ too — third
+option `12_900` vs `13_900`, parcel savings `31_000` vs `54_000`, transit 2 days
+vs 3, zip `94607` vs `94612`, delivery `2026-07-30` vs `2026-07-28`. Only the
+landed-cost arithmetic already matches (`496_000 + 74_000 = 570_000`, remaining
+`80_000`).
+
+Making the two agree is therefore explicit implementation work, not a property
+that holds for free: the frontend's fixture consts are **replaced** with the
+backend's canonical fixture values as part of the type-unification work. Note
+that this drops the deliberate "clearly labeled fixture data" anonymization in
+favor of the backend's realistic names; the existing on-screen fixture-mode
+disclaimer stays and carries that message instead.
 
 ## Testing
 
