@@ -1,4 +1,27 @@
-# ProcureOS Backend
+# ProcureOS
+
+One repo, two halves:
+
+- **Frontend** — cinematic demo UI (Next.js/vinext on a Cloudflare Worker). `npm run dev`
+- **Backend** — orchestration API (Fastify + SSE) in `src/`. `npm run api:dev` (port 8787)
+
+HTTP + SSE contract: [API.md](API.md). Shared domain types: [src/types.ts](src/types.ts).
+
+```bash
+npm install
+npm run dev       # frontend
+npm run api:dev   # backend on :8787
+npm run demo      # headless backend pipeline, fixtures only
+npm test          # frontend tests
+npm run api:test  # backend tests
+```
+
+> Frontend and backend are co-located but not yet wired together; the UI still
+> replays its own fixtures. See
+> [docs/superpowers/specs/2026-07-24-frontend-backend-merge-design.md](docs/superpowers/specs/2026-07-24-frontend-backend-merge-design.md).
+
+---
+
 
 An AI-native procurement agent. A user submits a purchasing request in natural language —
 
