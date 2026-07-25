@@ -1,0 +1,8 @@
+{
+  "quote": {
+    "mode": "LTL_PALLET",
+    "cost_cents": 74000,
+    "transit_days": 3,
+    "retail_parcel_baseline_cents": 128000
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "products": [
+    {
+      "name": "EconoStack Commercial Stacking Chair, Black Frame (min. order 20)",
+      "merchant": "BulkChairs Depot",
+      "domain": "bulkchairsdepot.com",
+      "price_cents": 11800,
+      "quantity_available": 320,
+      "lead_time_days": 4,
+      "buy_url": "https://bulkchairsdepot.com/p/econostack-commercial-black",
+      "image_url": "https://bulkchairsdepot.com/img/econostack-commercial-black.jpg"
+    },
+    {
+      "name": "SeatCraft Pro Series Stackable Banquet Chair, Steel Frame",
+      "merchant": "SeatCraft Commercial",
+      "domain": "seatcraft-commercial.com",
+      "price_cents": 12400,
+      "quantity_available": 550,
+      "lead_time_days": 3,
+      "buy_url": "https://seatcraft-commercial.com/products/pro-series-stackable-banquet",
+      "image_url": "https://seatcraft-commercial.com/img/pro-series-stackable.jpg"
+    },
+    {
+      "name": "RapidStack Contract-Grade Stacking Chair (ships same day)",
+      "merchant": "Rapid Restaurant Supply",
+      "domain": "rapidrestaurantsupply.com",
+      "price_cents": 13900,
+      "quantity_available": 180,
+      "lead_time_days": 1,
+      "buy_url": "https://rapidrestaurantsupply.com/item/rapidstack-contract-grade",
+      "image_url": "https://rapidrestaurantsupply.com/img/rapidstack.jpg"
+    }
+  ]
+}

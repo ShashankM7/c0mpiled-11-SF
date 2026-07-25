@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -27,9 +28,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -37,6 +40,10 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 /dist/
+dist/
 /.wrangler/
 /outputs/
 /work/
+
+# backend runtime state
+.data/

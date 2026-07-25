@@ -1,0 +1,11 @@
+{
+  "place": {
+    "place_id": "vg_plc_88231",
+    "formatted_address": "2210 Industrial Pkwy W, Hayward, CA 94544",
+    "status": "UNKNOWN",
+    "phone": "+15105550142",
+    "phone_status": "DISCONNECTED",
+    "hours_known": false,
+    "last_verified_at": "2026-02-20T00:00:00Z"
+  }
+}
