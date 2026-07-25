@@ -13,7 +13,6 @@ import {
   STEP_DELAYS_MS,
   LAST_DEMO_STEP,
   activeProcureState,
-  approvalChain,
   blockedSupplier,
   callOutcome,
   canonicalRequest,
@@ -99,9 +98,13 @@ function StageHeading({
 
 export function ProcureDemo() {
   const [machine, dispatch] = useReducer(demoReducer, initialDemoState);
-  const [transcriptLength, setTranscriptLength] = useState(0);
+  const [transcriptProgress, setTranscriptProgress] = useState({
+    runId: 0,
+    length: 0,
+  });
   const consoleRef = useRef<HTMLElement>(null);
   const currentState = activeProcureState(machine.step);
+  const displayState = currentState ?? "PARSED";
 
   const prefersReducedMotion = useCallback(
     () =>
@@ -141,27 +144,27 @@ export function ProcureDemo() {
   }, [machine.playing, machine.step]);
 
   useEffect(() => {
-    if (machine.step < 1) {
-      setTranscriptLength(0);
-      return;
-    }
-    if (machine.step > 1) {
-      setTranscriptLength(canonicalRequest.raw_text.length);
-      return;
-    }
+    if (machine.step !== 1) return;
 
-    setTranscriptLength(0);
     const interval = window.setInterval(() => {
-      setTranscriptLength((current) => {
-        if (current >= canonicalRequest.raw_text.length) {
+      setTranscriptProgress((current) => {
+        const currentLength =
+          current.runId === machine.runId ? current.length : 0;
+        if (currentLength >= canonicalRequest.raw_text.length) {
           window.clearInterval(interval);
           return current;
         }
-        return Math.min(current + 3, canonicalRequest.raw_text.length);
+        return {
+          runId: machine.runId,
+          length: Math.min(
+            currentLength + 3,
+            canonicalRequest.raw_text.length,
+          ),
+        };
       });
     }, 36);
     return () => window.clearInterval(interval);
-  }, [machine.step]);
+  }, [machine.runId, machine.step]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -210,11 +213,19 @@ export function ProcureDemo() {
     if (machine.step === LAST_DEMO_STEP) {
       return "Approved and ready. Dock window confirmed.";
     }
-    return `Run step ${machine.step} of ${LAST_DEMO_STEP}. ${stateLabels[currentState]}.`;
-  }, [currentState, machine.launched, machine.step]);
+    return `Run step ${machine.step} of ${LAST_DEMO_STEP}. ${stateLabels[displayState]}.`;
+  }, [displayState, machine.launched, machine.step]);
 
-  const timelineIndex = timelineStates.indexOf(currentState);
+  const timelineIndex = currentState ? timelineStates.indexOf(currentState) : -1;
   const isComplete = machine.step >= LAST_DEMO_STEP;
+  const transcriptLength =
+    machine.step < 1
+      ? 0
+      : machine.step > 1
+        ? canonicalRequest.raw_text.length
+        : transcriptProgress.runId === machine.runId
+          ? transcriptProgress.length
+          : 0;
   const transcript = canonicalRequest.raw_text.slice(0, transcriptLength);
 
   return (
@@ -364,7 +375,14 @@ export function ProcureDemo() {
               </div>
             </div>
 
-            <div className="state-map" aria-label={`Current state: ${stateLabels[currentState]}`}>
+            <div
+              className="state-map"
+              aria-label={
+                currentState
+                  ? `Current state: ${stateLabels[currentState]}`
+                  : "Run has not started"
+              }
+            >
               {timelineStates.map((state, index) => {
                 const reached = index <= timelineIndex;
                 const active = state === currentState;
@@ -848,4 +866,3 @@ export function ProcureDemo() {
     </div>
   );
 }
-

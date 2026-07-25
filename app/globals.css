@@ -104,7 +104,7 @@ a {
 
 .flow-field {
   position: fixed;
-  z-index: -1;
+  z-index: 0;
   inset: 0;
   width: 100vw;
   height: 100svh;
@@ -1244,7 +1244,7 @@ main,
 .call-panel__wave i {
   display: block;
   width: 2px;
-  height: calc(3px + (var(--bar) % 7) * 2px);
+  height: calc(4px + var(--bar) * 0.65px);
   border-radius: 2px;
   background: var(--violet);
   opacity: 0.55;

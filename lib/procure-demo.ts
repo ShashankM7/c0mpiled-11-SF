@@ -41,6 +41,7 @@ export interface ProductOption {
   qty_available: number;
   lead_time_days: number;
   buy_url: string;
+  image_url?: string;
   label: "LOWEST_PRICE" | "FASTEST" | "BEST_LANDED";
 }
 
@@ -115,6 +116,7 @@ export interface CallOutcome {
 export interface StepResult<T> {
   data: T;
   source: "live" | "fixture";
+  fallback_reason?: "fixture_mode" | "timeout" | "error";
   elapsed_ms: number;
 }
 
@@ -128,6 +130,7 @@ export interface DemoMachineState {
   launched: boolean;
   playing: boolean;
   step: number;
+  runId: number;
 }
 
 export type DemoAction =
@@ -147,6 +150,7 @@ export const initialDemoState: DemoMachineState = {
   launched: false,
   playing: false,
   step: 0,
+  runId: 0,
 };
 
 export function demoReducer(
@@ -155,10 +159,20 @@ export function demoReducer(
 ): DemoMachineState {
   switch (action.type) {
     case "START":
-      return { launched: true, playing: true, step: 1 };
+      return {
+        launched: true,
+        playing: true,
+        step: 1,
+        runId: state.runId + 1,
+      };
     case "PLAY":
       if (!state.launched || state.step >= LAST_DEMO_STEP) {
-        return { launched: true, playing: true, step: 1 };
+        return {
+          launched: true,
+          playing: true,
+          step: 1,
+          runId: state.runId + 1,
+        };
       }
       return { ...state, playing: true };
     case "PAUSE":
@@ -169,10 +183,16 @@ export function demoReducer(
         launched: true,
         playing: nextStep === LAST_DEMO_STEP ? false : state.playing,
         step: nextStep,
+        runId: state.runId,
       };
     }
     case "REPLAY":
-      return { launched: true, playing: true, step: 1 };
+      return {
+        launched: true,
+        playing: true,
+        step: 1,
+        runId: state.runId + 1,
+      };
     case "RESET":
       return initialDemoState;
     default:
@@ -180,12 +200,13 @@ export function demoReducer(
   }
 }
 
-export function activeProcureState(step: number): ProcureState {
-  if (step <= 1) return "PARSED";
+export function activeProcureState(step: number): ProcureState | null {
+  if (step <= 0) return null;
+  if (step === 1) return "PARSED";
   if (step === 2 || step === 4) return "SOURCED";
   if (step === 3 || step === 5) return "VERIFYING";
   if (step === 6) return "QUOTED";
-  if (step === 7 || step === 8) return "AWAITING_APPROVAL";
+  if (step >= 7 && step <= 9) return "AWAITING_APPROVAL";
   return "APPROVED_READY";
 }
 
@@ -226,11 +247,11 @@ export function approvalPolicy(
 }
 
 export async function runStep<T>(
-  live: () => Promise<T>,
+  live: (signal: AbortSignal) => Promise<T>,
   fixture: T,
   options: { mode?: "live" | "fixture"; timeoutMs?: number } = {},
 ): Promise<StepResult<T>> {
-  const mode = options.mode ?? "live";
+  const mode = options.mode ?? "fixture";
   const timeoutMs = options.timeoutMs ?? 4_000;
   const startedAt = Date.now();
 
@@ -238,16 +259,23 @@ export async function runStep<T>(
     return {
       data: fixture,
       source: "fixture",
+      fallback_reason: "fixture_mode",
       elapsed_ms: Date.now() - startedAt,
     };
   }
 
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
   try {
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error("step_timeout")), timeoutMs);
+      timer = setTimeout(() => {
+        timedOut = true;
+        reject(new Error("step_timeout"));
+        controller.abort();
+      }, timeoutMs);
     });
-    const data = await Promise.race([live(), timeout]);
+    const data = await Promise.race([live(controller.signal), timeout]);
     return {
       data,
       source: "live",
@@ -257,6 +285,7 @@ export async function runStep<T>(
     return {
       data: fixture,
       source: "fixture",
+      fallback_reason: timedOut ? "timeout" : "error",
       elapsed_ms: Date.now() - startedAt,
     };
   } finally {
@@ -455,4 +484,3 @@ export const callOutcome: CallOutcome = {
   summary: "Dock contact confirmed a two-hour receiving window.",
   recording_url: "#fixture",
 };
-

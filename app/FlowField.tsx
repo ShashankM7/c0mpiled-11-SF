@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
+import { useEffect, useRef } from "react";
 
 const vertexShader = `
   varying vec2 vUv;
@@ -101,7 +100,6 @@ const fragmentShader = `
 
 export function FlowField() {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [fallback, setFallback] = useState(false);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -110,119 +108,191 @@ export function FlowField() {
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
-    if (reducedMotion) {
-      setFallback(true);
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+    if (reducedMotion || connection?.saveData) {
+      mount.classList.add("flow-field--fallback");
       return;
     }
 
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
-        alpha: true,
-        antialias: false,
-        depth: false,
-        stencil: false,
-        powerPreference: "high-performance",
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+
+    const setup = async () => {
+      const THREE = await import("three");
+      if (disposed) return;
+
+      let renderer: import("three").WebGLRenderer;
+      try {
+        renderer = new THREE.WebGLRenderer({
+          alpha: true,
+          antialias: false,
+          depth: false,
+          stencil: false,
+          powerPreference: "low-power",
+        });
+      } catch {
+        if (!disposed) mount.classList.add("flow-field--fallback");
+        return;
+      }
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      const uniforms = {
+        uTime: { value: 0 },
+        uScroll: { value: 0 },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+        uPointer: { value: new THREE.Vector2(0.76, 0.3) },
+      };
+      const material = new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader,
+        uniforms,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
       });
-    } catch {
-      setFallback(true);
-      return;
-    }
+      const geometry = new THREE.PlaneGeometry(2, 2);
+      const mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
 
-    const isCompact = window.matchMedia("(max-width: 760px)").matches;
-    renderer.setPixelRatio(
-      Math.min(window.devicePixelRatio || 1, isCompact ? 1 : 1.5),
-    );
-    renderer.setClearColor(0x000000, 0);
-    renderer.domElement.setAttribute("aria-hidden", "true");
-    renderer.domElement.dataset.engine = "procure-flow";
-    mount.appendChild(renderer.domElement);
+      renderer.setClearColor(0x000000, 0);
+      renderer.domElement.setAttribute("aria-hidden", "true");
+      renderer.domElement.dataset.engine = "procure-flow";
+      mount.appendChild(renderer.domElement);
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const uniforms = {
-      uTime: { value: 0 },
-      uScroll: { value: 0 },
-      uResolution: {
-        value: new THREE.Vector2(window.innerWidth, window.innerHeight),
-      },
-      uPointer: { value: new THREE.Vector2(0.76, 0.3) },
-    };
-    const material = new THREE.ShaderMaterial({
-      vertexShader,
-      fragmentShader,
-      uniforms,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    const mesh = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
+      const drawingBufferSize = new THREE.Vector2();
+      const resize = () => {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const compact = window.matchMedia("(max-width: 760px)").matches;
+        const pixelBudgetDpr = Math.sqrt(
+          1_800_000 / Math.max(width * height, 1),
+        );
+        const dpr = Math.max(
+          0.7,
+          Math.min(
+            window.devicePixelRatio || 1,
+            compact ? 1 : 1.5,
+            pixelBudgetDpr,
+          ),
+        );
+        renderer.setPixelRatio(dpr);
+        renderer.setSize(width, height, false);
+        renderer.getDrawingBufferSize(drawingBufferSize);
+        uniforms.uResolution.value.copy(drawingBufferSize);
+      };
+      resize();
 
-    const resize = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      renderer.setSize(width, height, false);
-      uniforms.uResolution.value.set(width, height);
-    };
-    resize();
+      let targetX = 0.76;
+      let targetY = 0.3;
+      const acceptsPointer = window.matchMedia("(pointer: fine)").matches;
+      const onPointerMove = (event: PointerEvent) => {
+        if (!acceptsPointer) return;
+        targetX = event.clientX / Math.max(window.innerWidth, 1);
+        targetY = 1 - event.clientY / Math.max(window.innerHeight, 1);
+      };
+      const onScroll = () => {
+        uniforms.uScroll.value = Math.min(
+          window.scrollY / Math.max(window.innerHeight * 0.8, 1),
+          1,
+        );
+      };
 
-    let targetX = 0.76;
-    let targetY = 0.3;
-    const onPointerMove = (event: PointerEvent) => {
-      targetX = event.clientX / Math.max(window.innerWidth, 1);
-      targetY = 1 - event.clientY / Math.max(window.innerHeight, 1);
-    };
-    const onScroll = () => {
-      uniforms.uScroll.value = Math.min(
-        window.scrollY / Math.max(window.innerHeight * 0.8, 1),
-        1,
+      let previousFrameTime = performance.now();
+      let frame = 0;
+      let stopped = false;
+      const render = () => {
+        if (stopped || document.hidden) return;
+        frame = window.requestAnimationFrame(render);
+        const currentFrameTime = performance.now();
+        uniforms.uTime.value =
+          (uniforms.uTime.value +
+            Math.min((currentFrameTime - previousFrameTime) / 1000, 0.05)) %
+          4096;
+        previousFrameTime = currentFrameTime;
+        uniforms.uPointer.value.x +=
+          (targetX - uniforms.uPointer.value.x) * 0.035;
+        uniforms.uPointer.value.y +=
+          (targetY - uniforms.uPointer.value.y) * 0.035;
+        renderer.render(scene, camera);
+      };
+      const startRendering = () => {
+        if (stopped || document.hidden || frame) return;
+        previousFrameTime = performance.now();
+        render();
+      };
+      const onVisibilityChange = () => {
+        if (document.hidden) {
+          window.cancelAnimationFrame(frame);
+          frame = 0;
+        } else {
+          startRendering();
+        }
+      };
+      const onContextLost = (event: Event) => {
+        event.preventDefault();
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+        if (!disposed) mount.classList.add("flow-field--fallback");
+      };
+      const onContextRestored = () => {
+        if (!disposed) mount.classList.remove("flow-field--fallback");
+        resize();
+        startRendering();
+      };
+
+      window.addEventListener("resize", resize, { passive: true });
+      window.visualViewport?.addEventListener("resize", resize, {
+        passive: true,
+      });
+      window.addEventListener("pointermove", onPointerMove, { passive: true });
+      window.addEventListener("scroll", onScroll, { passive: true });
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      renderer.domElement.addEventListener("webglcontextlost", onContextLost);
+      renderer.domElement.addEventListener(
+        "webglcontextrestored",
+        onContextRestored,
       );
+      onScroll();
+      startRendering();
+
+      cleanup = () => {
+        stopped = true;
+        window.cancelAnimationFrame(frame);
+        window.removeEventListener("resize", resize);
+        window.visualViewport?.removeEventListener("resize", resize);
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("scroll", onScroll);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        renderer.domElement.removeEventListener(
+          "webglcontextlost",
+          onContextLost,
+        );
+        renderer.domElement.removeEventListener(
+          "webglcontextrestored",
+          onContextRestored,
+        );
+        geometry.dispose();
+        material.dispose();
+        renderer.dispose();
+        renderer.domElement.remove();
+      };
     };
 
-    window.addEventListener("resize", resize, { passive: true });
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-
-    const clock = new THREE.Clock();
-    let frame = 0;
-    let stopped = false;
-
-    const render = () => {
-      if (stopped) return;
-      frame = window.requestAnimationFrame(render);
-      if (document.hidden) return;
-      uniforms.uTime.value += Math.min(clock.getDelta(), 0.05);
-      uniforms.uPointer.value.x +=
-        (targetX - uniforms.uPointer.value.x) * 0.035;
-      uniforms.uPointer.value.y +=
-        (targetY - uniforms.uPointer.value.y) * 0.035;
-      renderer.render(scene, camera);
-    };
-    render();
+    void setup().catch(() => {
+      if (!disposed) mount.classList.add("flow-field--fallback");
+    });
 
     return () => {
-      stopped = true;
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("scroll", onScroll);
-      geometry.dispose();
-      material.dispose();
-      renderer.dispose();
-      renderer.domElement.remove();
+      disposed = true;
+      cleanup?.();
     };
   }, []);
 
   return (
-    <div
-      ref={mountRef}
-      className={`flow-field ${fallback ? "flow-field--fallback" : ""}`}
-      aria-hidden="true"
-    />
+    <div ref={mountRef} className="flow-field" aria-hidden="true" />
   );
 }
-
