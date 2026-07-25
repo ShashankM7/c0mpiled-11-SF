@@ -1,0 +1,11 @@
+{
+  "place": {
+    "place_id": "vg_plc_10457",
+    "formatted_address": "480 Hegenberger Rd, Oakland, CA 94621",
+    "status": "OPERATIONAL",
+    "phone": "+15105550177",
+    "phone_status": "ACTIVE",
+    "hours_known": true,
+    "last_verified_at": "2026-07-20T00:00:00Z"
+  }
+}
