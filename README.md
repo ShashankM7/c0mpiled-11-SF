@@ -1,4 +1,4 @@
-# ProcureOS
+# ProcureOS V2
 
 One repo, two halves:
 
