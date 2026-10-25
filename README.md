@@ -1,4 +1,11 @@
-# ProcureOS V2
+# c0mpiled-11-SF
+
+ProcureOS V2, in the standalone [ShashankM7/c0mpiled-11-SF](https://github.com/ShashankM7/c0mpiled-11-SF) repository. Original project history and contributor attribution are preserved.
+
+```bash
+git clone https://github.com/ShashankM7/c0mpiled-11-SF.git
+cd c0mpiled-11-SF
+```
 
 One repo, two halves:
 

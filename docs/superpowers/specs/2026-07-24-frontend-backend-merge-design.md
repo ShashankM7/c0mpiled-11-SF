@@ -48,7 +48,7 @@ No component restructuring. No new rendering path.
 ### Repository layout
 
 ```
-c0mpiled-11/
+c0mpiled-11-SF/
   package.json               npm workspaces + concurrently; dev/test/build both halves
   README.md                  merged product README linking both apps
   docs/superpowers/specs/
